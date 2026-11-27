@@ -204,22 +204,14 @@ const cues = {
   ]
 };
 
-// Open major voicings and soft, syncopated key strokes at 108 BPM.
+// A light house groove. The short percussion and keys stay below the scene cues.
 const score = [
-  [196, 246.94, 293.66, 440],    // Gadd9
-  [261.63, 329.63, 392, 493.88], // Cmaj7
-  [293.66, 329.63, 440, 587.33], // Dsus2
-  [261.63, 329.63, 392, 587.33]  // Cadd9, resolving to G at the logo
+  [130.81, 329.63, 392, 493.88], // Cmaj7
+  [146.83, 369.99, 440, 523.25], // D7
+  [123.47, 293.66, 392, 493.88], // G/B
+  [110, 277.18, 329.63, 440]    // A major
 ];
-const scoreBeat = 60 / 108;
-const scorePattern = [
-  { beat: 0, note: 0, volume: .105, length: .56 },
-  { beat: .5, note: 2, volume: .061, length: .37 },
-  { beat: 1.5, note: 1, volume: .071, length: .40 },
-  { beat: 2, note: 0, volume: .082, length: .48 },
-  { beat: 2.5, note: 3, volume: .047, length: .35 },
-  { beat: 3.5, note: 2, volume: .055, length: .36 }
-];
+const scoreBeat = 60 / 117;
 
 let audio;
 let audioReady;
@@ -286,22 +278,36 @@ function prepareScore() {
     const barLength = scoreBeat * 4;
     const duration = score.length * barLength;
     const render = new OfflineContext(1, Math.round(duration * sampleRate), sampleRate);
-    for (const [bar, chord] of score.entries()) {
-      for (const { beat, note, volume, length } of scorePattern) {
-        const at = bar * barLength + beat * scoreBeat;
-        const end = Math.min(at + length, duration);
-        const tone = render.createOscillator();
-        const gain = render.createGain();
-        tone.type = note === 0 ? 'sine' : 'triangle';
-        tone.frequency.value = chord[note];
-        gain.gain.setValueAtTime(.0001, at);
-        gain.gain.exponentialRampToValueAtTime(volume, at + .045);
-        gain.gain.exponentialRampToValueAtTime(.0001, end);
-        tone.connect(gain);
-        gain.connect(render.destination);
-        tone.start(at);
-        tone.stop(end);
+    function note(type, pitch, at, length, level, endPitch = pitch) {
+      const end = Math.min(at + length, duration);
+      const tone = render.createOscillator();
+      const gain = render.createGain();
+      tone.type = type;
+      tone.frequency.setValueAtTime(pitch, at);
+      if (endPitch !== pitch) tone.frequency.exponentialRampToValueAtTime(endPitch, end);
+      gain.gain.setValueAtTime(.0001, at);
+      gain.gain.exponentialRampToValueAtTime(level, at + .012);
+      gain.gain.exponentialRampToValueAtTime(.0001, end);
+      tone.connect(gain);
+      gain.connect(render.destination);
+      tone.start(at);
+      tone.stop(end);
+    }
+
+    for (const [bar, [bass, ...keys]] of score.entries()) {
+      const start = bar * barLength;
+      for (let beat = 0; beat < 4; beat++) {
+        const downbeat = start + beat * scoreBeat;
+        note('sine', 130, downbeat, .13, .093, 55);
+        note('sine', bass, downbeat + scoreBeat * .5, .18, .078);
+        if (beat !== 1) {
+          for (const pitch of keys) {
+            note('triangle', pitch, downbeat + scoreBeat * .57, .14, .029);
+          }
+        }
       }
+      note('sine', keys[2] * 2, start + scoreBeat * 1.77, .105, .025);
+      note('sine', keys[1] * 2, start + scoreBeat * 3.28, .105, .025);
     }
     scoreReady = render.startRendering().catch(() => null);
     return scoreReady;
