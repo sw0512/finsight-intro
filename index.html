@@ -204,12 +204,21 @@ const cues = {
   ]
 };
 
-// A quiet harmonic pulse under the first four scenes.
+// Open major voicings and soft, syncopated key strokes at 108 BPM.
 const score = [
-  [196, 293.66],
-  [155.56, 233.08],
-  [130.81, 196],
-  [146.83, 220]
+  [196, 246.94, 293.66, 440],    // Gadd9
+  [261.63, 329.63, 392, 493.88], // Cmaj7
+  [293.66, 329.63, 440, 587.33], // Dsus2
+  [261.63, 329.63, 392, 587.33]  // Cadd9, resolving to G at the logo
+];
+const scoreBeat = 60 / 108;
+const scorePattern = [
+  { beat: 0, note: 0, volume: .105, length: .56 },
+  { beat: .5, note: 2, volume: .061, length: .37 },
+  { beat: 1.5, note: 1, volume: .071, length: .40 },
+  { beat: 2, note: 0, volume: .082, length: .48 },
+  { beat: 2.5, note: 3, volume: .047, length: .35 },
+  { beat: 3.5, note: 2, volume: .055, length: .36 }
 ];
 
 let audio;
@@ -263,16 +272,25 @@ async function playVoices(parts) {
 const playCue = name => playVoices(cues[name]);
 
 function playScore(scene) {
-  if (!score[scene]) return;
-  const [root, fifth] = score[scene];
+  const chord = score[scene];
+  if (!chord) return;
   const duration = DUR[scene] / 1000;
-  const notes = [
-    { type: 'sine', from: root, to: root, volume: .06, duration, attack: .45, release: .55 },
-    { type: 'sine', from: fifth, to: fifth, volume: .036, duration, attack: .7, release: .65 }
-  ];
-  for (let delay = .48; delay + .35 < duration; delay += .8) {
-    const pitch = Math.round((delay - .48) / .8) % 2 === 0 ? root : fifth;
-    notes.push({ type: 'sine', from: pitch, to: pitch, volume: .042, duration: .31, delay, attack: .07 });
+  const notes = [];
+  for (let bar = .16; bar < duration; bar += scoreBeat * 4) {
+    for (const { beat, note, volume, length } of scorePattern) {
+      const delay = bar + beat * scoreBeat;
+      if (delay + .12 > duration) break;
+      const pitch = chord[note];
+      notes.push({
+        type: note === 0 ? 'sine' : 'triangle',
+        from: pitch,
+        to: pitch,
+        volume,
+        duration: Math.min(length, duration - delay),
+        delay,
+        attack: .045
+      });
+    }
   }
   playVoices(notes);
 }
