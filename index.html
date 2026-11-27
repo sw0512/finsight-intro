@@ -271,28 +271,65 @@ async function playVoices(parts) {
 
 const playCue = name => playVoices(cues[name]);
 
-function playScore(scene) {
-  const chord = score[scene];
-  if (!chord) return;
-  const duration = DUR[scene] / 1000;
-  const notes = [];
-  for (let bar = .16; bar < duration; bar += scoreBeat * 4) {
+let scoreBuffer;
+let scorePlayback;
+let scoreCompleted = false;
+
+function buildScore() {
+  const sampleRate = audio.sampleRate;
+  const barLength = scoreBeat * 4;
+  const buffer = audio.createBuffer(1, Math.round(score.length * barLength * sampleRate), sampleRate);
+  const samples = buffer.getChannelData(0);
+  for (const [bar, chord] of score.entries()) {
     for (const { beat, note, volume, length } of scorePattern) {
-      const delay = bar + beat * scoreBeat;
-      if (delay + .12 > duration) break;
+      const first = Math.round((bar * barLength + beat * scoreBeat) * sampleRate);
+      const count = Math.round(length * sampleRate);
       const pitch = chord[note];
-      notes.push({
-        type: note === 0 ? 'sine' : 'triangle',
-        from: pitch,
-        to: pitch,
-        volume,
-        duration: Math.min(length, duration - delay),
-        delay,
-        attack: .045
-      });
+      for (let sample = 0; sample < count; sample++) {
+        const time = sample / sampleRate;
+        const phase = time * pitch;
+        const wave = note === 0
+          ? Math.sin(2 * Math.PI * phase)
+          : 2 * Math.abs(2 * (phase - Math.floor(phase + .5))) - 1;
+        const level = time < .045
+          ? .0001 * Math.pow(volume / .0001, time / .045)
+          : volume * Math.pow(.0001 / volume, (time - .045) / (length - .045));
+        samples[(first + sample) % samples.length] += wave * level;
+      }
     }
   }
-  playVoices(notes);
+  return buffer;
+}
+
+function startScore() {
+  if (!audio || scorePlayback || scoreCompleted) return;
+  scoreBuffer ??= buildScore();
+  const source = audio.createBufferSource();
+  const gain = audio.createGain();
+  source.buffer = scoreBuffer;
+  source.loop = true;
+  gain.gain.value = muted ? 0 : 1;
+  source.connect(gain);
+  gain.connect(audio.destination);
+  source.onended = () => {
+    source.disconnect();
+    gain.disconnect();
+  };
+  source.start();
+  scorePlayback = { source, gain };
+}
+
+function stopScore() {
+  if (!scorePlayback) return;
+  const { source, gain } = scorePlayback;
+  const now = audio.currentTime;
+  gain.gain.setTargetAtTime(0, now, .045);
+  source.stop(now + .23);
+  scorePlayback = undefined;
+}
+
+function setScoreMuted() {
+  scorePlayback?.gain.gain.setTargetAtTime(muted ? 0 : 1, audio.currentTime, .025);
 }
 
 function stopCues() {
@@ -415,11 +452,13 @@ function go(i,auto){
   if(i<0||i>=scenes.length)return;
   clear();$('hint').style.opacity=0;$('hint').style.pointerEvents='none';$('sound-test').disabled=true;
   scenes.forEach((s,k)=>s.classList.toggle('on',k===i));
-  cur=i;enter(i);playScore(i);
+  cur=i;enter(i);
+  if(i===scenes.length-1){scoreCompleted=true;stopScore()}
+  else startScore();
   const bar=$('bar'),N=scenes.length-1;bar.style.transition='none';bar.style.width=(i/N*100)+'%';bar.style.opacity=i===N?0:1;
   if(auto&&DUR[i]){later(()=>go(i+1,true),DUR[i]);requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.transition=`width ${DUR[i]}ms linear`;bar.style.width=((i+1)/N*100)+'%'}))}
 }
-function reset(){clear();scenes.forEach(s=>s.classList.remove('on'));cur=-1;$('hint').style.opacity=1;$('hint').style.pointerEvents='';$('sound-test').disabled=false;$('bar').style.width=0}
+function reset(){clear();stopScore();scoreCompleted=false;scenes.forEach(s=>s.classList.remove('on'));cur=-1;$('hint').style.opacity=1;$('hint').style.pointerEvents='';$('sound-test').disabled=false;$('bar').style.width=0}
 function next(){unlockAudio();cur<0?go(0,true):go(cur+1,false)}
 addEventListener('keydown',e=>{
   if(e.target===$('sound-test')&&[' ','Enter'].includes(e.key))return;
@@ -428,7 +467,11 @@ addEventListener('keydown',e=>{
   else if((e.key==='m'||e.key==='M')&&!e.repeat){
     muted=!muted;
     if(muted)stopCues();
-    else {unlockAudio();playScore(cur)}
+    else {
+      unlockAudio();
+      if(cur>=0&&cur<scenes.length-1)startScore();
+    }
+    setScoreMuted();
   }
   else if(e.key==='r'||e.key==='R')reset();
   else if(e.key==='f'||e.key==='F'){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(_){}}
