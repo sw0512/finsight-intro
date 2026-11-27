@@ -185,6 +185,14 @@ const cues = {
     { type: 'triangle', from: 640, to: 360, volume: .24, duration: .16 },
     { type: 'sine', from: 282, to: 196, volume: .13, duration: .22 }
   ],
+  choice: [
+    { type: 'triangle', from: 360, to: 245, volume: .11, duration: .10 },
+    { type: 'sine', from: 225, to: 225, volume: .065, duration: .14 }
+  ],
+  rewind: [
+    { type: 'sine', from: 185, to: 365, volume: .11, duration: .24 },
+    { type: 'triangle', from: 295, to: 225, volume: .045, duration: .20, delay: .19 }
+  ],
   reversal: [
     { type: 'sine', from: 190, to: 80, volume: .30, duration: .41 },
     { type: 'triangle', from: 275, to: 112, volume: .135, duration: .29 }
@@ -195,11 +203,20 @@ const cues = {
     { type: 'sine', from: 392, to: 392, volume: .09, duration: .63, delay: .13 }
   ]
 };
+
+// A quiet harmonic pulse under the first four scenes.
+const score = [
+  [196, 293.66],
+  [155.56, 233.08],
+  [130.81, 196],
+  [146.83, 220]
+];
+
 let audio;
 let audioReady;
 let cueVersion = 0;
 let muted = false;
-const voices = new Set();
+const voices = new Map();
 
 function unlockAudio() {
   const Context = window.AudioContext || window.webkitAudioContext;
@@ -212,13 +229,13 @@ function unlockAudio() {
   }
 }
 
-async function playCue(name) {
+async function playVoices(parts) {
   if (muted || !audio) return;
   const version = cueVersion;
   if (audio.state !== 'running') await audioReady;
   if (version !== cueVersion || audio.state !== 'running') return;
   const start = audio.currentTime;
-  for (const { type, from, to, volume, duration, delay = 0 } of cues[name]) {
+  for (const { type, from, to, volume, duration, delay = 0, attack = .035, release = duration } of parts) {
     const at = start + delay;
     const end = at + duration;
     const tone = audio.createOscillator();
@@ -227,11 +244,12 @@ async function playCue(name) {
     tone.frequency.setValueAtTime(from, at);
     if (from !== to) tone.frequency.exponentialRampToValueAtTime(to, end);
     gain.gain.setValueAtTime(.0001, at);
-    gain.gain.exponentialRampToValueAtTime(volume, at + Math.min(.035, duration / 6));
+    gain.gain.exponentialRampToValueAtTime(volume, at + Math.min(attack, duration / 3));
+    if (release < duration - attack) gain.gain.setValueAtTime(volume, end - release);
     gain.gain.exponentialRampToValueAtTime(.0001, end);
     tone.connect(gain);
     gain.connect(audio.destination);
-    voices.add(tone);
+    voices.set(tone, { gain, at, end });
     tone.onended = () => {
       voices.delete(tone);
       tone.disconnect();
@@ -242,9 +260,37 @@ async function playCue(name) {
   }
 }
 
+const playCue = name => playVoices(cues[name]);
+
+function playScore(scene) {
+  if (!score[scene]) return;
+  const [root, fifth] = score[scene];
+  const duration = DUR[scene] / 1000;
+  const notes = [
+    { type: 'sine', from: root, to: root, volume: .06, duration, attack: .45, release: .55 },
+    { type: 'sine', from: fifth, to: fifth, volume: .036, duration, attack: .7, release: .65 }
+  ];
+  for (let delay = .48; delay + .35 < duration; delay += .8) {
+    const pitch = Math.round((delay - .48) / .8) % 2 === 0 ? root : fifth;
+    notes.push({ type: 'sine', from: pitch, to: pitch, volume: .042, duration: .31, delay, attack: .07 });
+  }
+  playVoices(notes);
+}
+
 function stopCues() {
   cueVersion++;
-  for (const tone of voices) tone.stop();
+  if (!audio) return;
+  const now = audio.currentTime;
+  for (const [tone, { gain, at, end }] of voices) {
+    if (at <= now && now < end && typeof gain.gain.cancelAndHoldAtTime === 'function') {
+      const fadeEnd = Math.min(now + .045, end);
+      gain.gain.cancelAndHoldAtTime(now);
+      gain.gain.linearRampToValueAtTime(0, fadeEnd);
+      tone.stop(fadeEnd);
+    } else {
+      tone.stop();
+    }
+  }
   voices.clear();
 }
 
@@ -316,7 +362,7 @@ function enter(i){
     const hu=$('hu'),hd=$('hd'),p=$('ptr');
     hu.classList.remove('win');hd.classList.remove('lose');p.classList.remove('go','tap');p.style.opacity=1;$('ask').style.opacity=1;hide($('sure'));
     later(()=>p.classList.add('go'),500);
-    later(()=>p.classList.add('tap'),1500);
+    later(()=>{p.classList.add('tap');playCue('choice')},1500);
     later(()=>{p.classList.remove('tap');p.style.opacity=0;$('ask').style.opacity=0;hu.classList.add('win');hd.classList.add('lose')},1650);
     later(()=>anim($('sure'),'rise'),2300);
   }
@@ -329,6 +375,7 @@ function enter(i){
     const cs=[...document.querySelectorAll('#s4 .card')];
     [$('f1'),$('f2'),$('note'),...cs].forEach(hide);
     anim($('rw'),'on');
+    playCue('rewind');
     later(()=>anim($('f1'),'rise'),500);
     later(()=>anim($('f2'),'rise'),1250);
     cs.forEach((c,k)=>later(()=>anim(c,'rise'),2300+k*400));
@@ -350,7 +397,7 @@ function go(i,auto){
   if(i<0||i>=scenes.length)return;
   clear();$('hint').style.opacity=0;$('hint').style.pointerEvents='none';$('sound-test').disabled=true;
   scenes.forEach((s,k)=>s.classList.toggle('on',k===i));
-  cur=i;enter(i);
+  cur=i;enter(i);playScore(i);
   const bar=$('bar'),N=scenes.length-1;bar.style.transition='none';bar.style.width=(i/N*100)+'%';bar.style.opacity=i===N?0:1;
   if(auto&&DUR[i]){later(()=>go(i+1,true),DUR[i]);requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.transition=`width ${DUR[i]}ms linear`;bar.style.width=((i+1)/N*100)+'%'}))}
 }
@@ -363,13 +410,14 @@ addEventListener('keydown',e=>{
   else if((e.key==='m'||e.key==='M')&&!e.repeat){
     muted=!muted;
     if(muted)stopCues();
-    else unlockAudio();
+    else {unlockAudio();playScore(cur)}
   }
   else if(e.key==='r'||e.key==='R')reset();
   else if(e.key==='f'||e.key==='F'){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(_){}}
 });
 $('sound-test').addEventListener('click', e => {
   e.stopPropagation();
+  e.currentTarget.blur();
   muted = false;
   stopCues();
   unlockAudio();
