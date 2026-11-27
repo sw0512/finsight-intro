@@ -271,42 +271,54 @@ async function playVoices(parts) {
 
 const playCue = name => playVoices(cues[name]);
 
-let scoreBuffer;
+let scoreReady;
 let scorePlayback;
+let scoreGeneration = 0;
 let scoreCompleted = false;
 
-function buildScore() {
-  const sampleRate = audio.sampleRate;
-  const barLength = scoreBeat * 4;
-  const buffer = audio.createBuffer(1, Math.round(score.length * barLength * sampleRate), sampleRate);
-  const samples = buffer.getChannelData(0);
-  for (const [bar, chord] of score.entries()) {
-    for (const { beat, note, volume, length } of scorePattern) {
-      const first = Math.round((bar * barLength + beat * scoreBeat) * sampleRate);
-      const count = Math.round(length * sampleRate);
-      const pitch = chord[note];
-      for (let sample = 0; sample < count; sample++) {
-        const time = sample / sampleRate;
-        const phase = time * pitch;
-        const wave = note === 0
-          ? Math.sin(2 * Math.PI * phase)
-          : 2 * Math.abs(2 * (phase - Math.floor(phase + .5))) - 1;
-        const level = time < .045
-          ? .0001 * Math.pow(volume / .0001, time / .045)
-          : volume * Math.pow(.0001 / volume, (time - .045) / (length - .045));
-        samples[(first + sample) % samples.length] += wave * level;
+function prepareScore() {
+  if (scoreReady) return scoreReady;
+  const OfflineContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!OfflineContext) return Promise.resolve(null);
+
+  try {
+    const sampleRate = 44100;
+    const barLength = scoreBeat * 4;
+    const duration = score.length * barLength;
+    const render = new OfflineContext(1, Math.round(duration * sampleRate), sampleRate);
+    for (const [bar, chord] of score.entries()) {
+      for (const { beat, note, volume, length } of scorePattern) {
+        const at = bar * barLength + beat * scoreBeat;
+        const end = Math.min(at + length, duration);
+        const tone = render.createOscillator();
+        const gain = render.createGain();
+        tone.type = note === 0 ? 'sine' : 'triangle';
+        tone.frequency.value = chord[note];
+        gain.gain.setValueAtTime(.0001, at);
+        gain.gain.exponentialRampToValueAtTime(volume, at + .045);
+        gain.gain.exponentialRampToValueAtTime(.0001, end);
+        tone.connect(gain);
+        gain.connect(render.destination);
+        tone.start(at);
+        tone.stop(end);
       }
     }
+    scoreReady = render.startRendering().catch(() => null);
+    return scoreReady;
+  } catch {
+    return Promise.resolve(null);
   }
-  return buffer;
 }
 
-function startScore() {
+async function startScore() {
   if (!audio || scorePlayback || scoreCompleted) return;
-  scoreBuffer ??= buildScore();
+  const generation = scoreGeneration;
+  const buffer = await prepareScore();
+  if (!buffer || generation !== scoreGeneration || scorePlayback || scoreCompleted) return;
+
   const source = audio.createBufferSource();
   const gain = audio.createGain();
-  source.buffer = scoreBuffer;
+  source.buffer = buffer;
   source.loop = true;
   gain.gain.value = muted ? 0 : 1;
   source.connect(gain);
@@ -320,6 +332,7 @@ function startScore() {
 }
 
 function stopScore() {
+  scoreGeneration++;
   if (!scorePlayback) return;
   const { source, gain } = scorePlayback;
   const now = audio.currentTime;
@@ -486,6 +499,7 @@ $('sound-test').addEventListener('click', e => {
 });
 addEventListener('click',next);
 let mt;addEventListener('mousemove',()=>{document.body.classList.add('cur');clearTimeout(mt);mt=setTimeout(()=>document.body.classList.remove('cur'),1500)});
+prepareScore();
 if(location.hash==='#auto')setTimeout(()=>go(0,true),600);
 }
 </script>
