@@ -98,6 +98,8 @@ body.cur{cursor:default}
 .loop span.hi{color:var(--ink)}
 .tag{position:absolute;left:96px;top:620px;font-size:42px;color:#d0d0cb;font-weight:500;opacity:0}
 
+#sound-test{display:inline-block;margin-top:16px;padding:5px 16px;border:1px solid #3f3f3c;border-radius:4px;background:transparent;color:#aaa;font:inherit;font-size:22px;cursor:pointer}
+#sound-test:hover,#sound-test:focus-visible{border-color:#aaa;color:#fff}
 #hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:30px;color:#4a4a46;text-align:center;line-height:1.8;transition:opacity .4s;z-index:30}
 #bar{position:absolute;left:0;bottom:0;height:6px;width:0;background:#2c2c2a;z-index:30}
 
@@ -115,7 +117,7 @@ body.cur{cursor:default}
 </style>
 
 <div id="stage"><div id="cam">
-  <div id="hint">Space · 클릭으로 시작<br><span style="font-size:24px">→ 다음 장면 · ← 이전 · R 처음부터 · F 전체화면 · M 소리 켜기/끄기</span></div>
+  <div id="hint">Space · 클릭으로 시작<br><span style="font-size:24px">→ 다음 장면 · ← 이전 · R 처음부터 · F 전체화면 · M 소리 켜기/끄기</span><br><button id="sound-test" type="button">소리 테스트</button></div>
 
   <section class="sc" id="s1">
     <div class="tick" style="top:40px" id="tk1"></div>
@@ -180,20 +182,22 @@ let cur=-1,timers=[],raf=0;
 // Short, low-level cues follow the animation and share one audio context.
 const cues = {
   bulletin: [
-    { type: 'triangle', from: 520, to: 315, volume: .062, duration: .105 },
-    { type: 'sine', from: 236, to: 180, volume: .040, duration: .135 }
+    { type: 'triangle', from: 640, to: 360, volume: .24, duration: .16 },
+    { type: 'sine', from: 282, to: 196, volume: .13, duration: .22 }
   ],
   reversal: [
-    { type: 'sine', from: 156, to: 60, volume: .142, duration: .36 },
-    { type: 'triangle', from: 205, to: 86, volume: .049, duration: .235 }
+    { type: 'sine', from: 190, to: 80, volume: .30, duration: .41 },
+    { type: 'triangle', from: 275, to: 112, volume: .135, duration: .29 }
   ],
   title: [
-    { type: 'sine', from: 196, to: 196, volume: .064, duration: .52 },
-    { type: 'sine', from: 293.66, to: 293.66, volume: .046, duration: .61, delay: .065 },
-    { type: 'sine', from: 392, to: 392, volume: .025, duration: .63, delay: .13 }
+    { type: 'sine', from: 196, to: 196, volume: .20, duration: .52 },
+    { type: 'sine', from: 293.66, to: 293.66, volume: .15, duration: .61, delay: .065 },
+    { type: 'sine', from: 392, to: 392, volume: .09, duration: .63, delay: .13 }
   ]
 };
 let audio;
+let audioReady;
+let cueVersion = 0;
 let muted = false;
 const voices = new Set();
 
@@ -202,14 +206,17 @@ function unlockAudio() {
   if (!Context || muted) return;
   try {
     if (!audio) audio = new Context();
-    if (audio.state !== 'running') audio.resume().catch(() => {});
+    if (audio.state !== 'running') audioReady = audio.resume().catch(() => {});
   } catch {
     // The opening can still run if the browser has no usable audio output.
   }
 }
 
-function playCue(name) {
-  if (muted || audio?.state !== 'running') return;
+async function playCue(name) {
+  if (muted || !audio) return;
+  const version = cueVersion;
+  if (audio.state !== 'running') await audioReady;
+  if (version !== cueVersion || audio.state !== 'running') return;
   const start = audio.currentTime;
   for (const { type, from, to, volume, duration, delay = 0 } of cues[name]) {
     const at = start + delay;
@@ -236,6 +243,7 @@ function playCue(name) {
 }
 
 function stopCues() {
+  cueVersion++;
   for (const tone of voices) tone.stop();
   voices.clear();
 }
@@ -299,7 +307,8 @@ function enter(i){
   if(i===0){
     hide($('brk'));hide($('q1'));$('hl').querySelectorAll('.w').forEach(hide);
     flash('w');
-    later(()=>{anim($('brk'),'pop');playCue('bulletin')},150);
+    later(()=>anim($('brk'),'pop'),150);
+    playCue('bulletin');
     $('hl').querySelectorAll('.w').forEach((w,k)=>later(()=>w.classList.add('in'),550+k*380));
     later(()=>anim($('q1'),'rise'),2700);
   }
@@ -339,15 +348,16 @@ function enter(i){
 
 function go(i,auto){
   if(i<0||i>=scenes.length)return;
-  clear();$('hint').style.opacity=0;
+  clear();$('hint').style.opacity=0;$('hint').style.pointerEvents='none';$('sound-test').disabled=true;
   scenes.forEach((s,k)=>s.classList.toggle('on',k===i));
   cur=i;enter(i);
   const bar=$('bar'),N=scenes.length-1;bar.style.transition='none';bar.style.width=(i/N*100)+'%';bar.style.opacity=i===N?0:1;
   if(auto&&DUR[i]){later(()=>go(i+1,true),DUR[i]);requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.transition=`width ${DUR[i]}ms linear`;bar.style.width=((i+1)/N*100)+'%'}))}
 }
-function reset(){clear();scenes.forEach(s=>s.classList.remove('on'));cur=-1;$('hint').style.opacity=1;$('bar').style.width=0}
+function reset(){clear();scenes.forEach(s=>s.classList.remove('on'));cur=-1;$('hint').style.opacity=1;$('hint').style.pointerEvents='';$('sound-test').disabled=false;$('bar').style.width=0}
 function next(){unlockAudio();cur<0?go(0,true):go(cur+1,false)}
 addEventListener('keydown',e=>{
+  if(e.target===$('sound-test')&&[' ','Enter'].includes(e.key))return;
   if([' ','ArrowRight','Enter','PageDown'].includes(e.key)){e.preventDefault();next()}
   else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(Math.max(0,cur-1),false)}
   else if((e.key==='m'||e.key==='M')&&!e.repeat){
@@ -357,6 +367,13 @@ addEventListener('keydown',e=>{
   }
   else if(e.key==='r'||e.key==='R')reset();
   else if(e.key==='f'||e.key==='F'){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(_){}}
+});
+$('sound-test').addEventListener('click', e => {
+  e.stopPropagation();
+  muted = false;
+  stopCues();
+  unlockAudio();
+  playCue('bulletin');
 });
 addEventListener('click',next);
 let mt;addEventListener('mousemove',()=>{document.body.classList.add('cur');clearTimeout(mt);mt=setTimeout(()=>document.body.classList.remove('cur'),1500)});
