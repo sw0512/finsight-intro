@@ -263,6 +263,7 @@ async function playVoices(parts) {
 
 const playCue = name => playVoices(cues[name]);
 
+const scoreLevel = 1.7;
 let scoreReady;
 let scorePlayback;
 let scoreGeneration = 0;
@@ -326,7 +327,7 @@ async function startScore() {
   const gain = audio.createGain();
   source.buffer = buffer;
   source.loop = true;
-  gain.gain.value = muted ? 0 : 1;
+  gain.gain.value = muted ? 0 : scoreLevel;
   source.connect(gain);
   gain.connect(audio.destination);
   source.onended = () => {
@@ -342,13 +343,13 @@ function stopScore() {
   if (!scorePlayback) return;
   const { source, gain } = scorePlayback;
   const now = audio.currentTime;
-  gain.gain.setTargetAtTime(0, now, .045);
-  source.stop(now + .23);
+  gain.gain.setTargetAtTime(0, now, .17);
+  source.stop(now + .85);
   scorePlayback = undefined;
 }
 
 function setScoreMuted() {
-  scorePlayback?.gain.gain.setTargetAtTime(muted ? 0 : 1, audio.currentTime, .025);
+  scorePlayback?.gain.gain.setTargetAtTime(muted ? 0 : scoreLevel, audio.currentTime, .025);
 }
 
 function stopCues() {
