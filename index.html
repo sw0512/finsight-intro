@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinSight 오프닝</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* VOICE occasion: 발표 오프닝, 강한 키네틱 타이포
+   IDEA 속보 → 확신에 찬 예측 → 차트 급반전 → 근거로 되감기 → FINSIGHT. 서비스 학습 루프를 한 번 '체험'시킨다
+   PICTURE 1920x1080 무대, 장면마다 화면을 꽉 채우는 한 가지(슬램 헤드라인, 빨강/파랑 분할, 전면 차트, 근거 카드, 거대 로고)
+   COLOUR 검정 #0b0b0b, 흰 글자, 상승 빨강 #ff3b3b, 하락 파랑 #2f7bff (국내 증시 관례)
+   TYPE Noto Sans KR 900 + 500, 시스템 고딕 폴백(오프라인)
+   LAYOUT 무대를 창에 맞게 비율 유지 축소, 남는 곳은 검정 레터박스 */
+:root{color-scheme:dark;--bg:#0b0b0b;--ink:#f4f4f2;--dim:#85857f;--line:#262624;--up:#ff3b3b;--down:#2f7bff}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:#000;color:var(--ink);overflow:hidden}
+body{font-family:"Noto Sans KR","Apple SD Gothic Neo","Pretendard","Malgun Gothic",system-ui,sans-serif;cursor:none}
+body.cur{cursor:default}
+#stage{position:absolute;width:1920px;height:1080px;background:var(--bg);overflow:hidden;transform-origin:0 0}
+#cam{position:absolute;inset:0}
+#cam.shake{animation:shake .55s cubic-bezier(.36,.07,.19,.97)}
+#flash{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:20}
+#flash.w{background:#fff;animation:fl .5s ease-out}
+#flash.b{background:var(--down);animation:fl .7s ease-out}
+.sc{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .35s,visibility 0s .35s}
+.sc.on{opacity:1;visibility:visible;transition:opacity .35s}
+.step{position:absolute;top:60px;left:96px;font-size:26px;color:var(--dim);font-weight:500;z-index:5}
+.step b{color:var(--ink);font-weight:900;margin-right:10px}
+.meta{position:absolute;top:60px;right:96px;font-size:26px;color:var(--dim);z-index:5}
+.pop{animation:pop .5s cubic-bezier(.2,1.4,.4,1) both}
+.rise{animation:rise .6s cubic-bezier(.2,.9,.2,1) both}
+
+/* 1 속보 */
+.tick{position:absolute;left:0;white-space:nowrap;font-size:120px;font-weight:900;color:#161615;letter-spacing:-.03em;animation:slide 14s linear infinite}
+.tick.t2{animation-direction:reverse;animation-duration:18s}
+.tick span{margin-right:80px}
+.brk{position:absolute;left:96px;top:250px;background:var(--up);color:#fff;font-size:44px;font-weight:900;padding:10px 30px;display:flex;gap:18px;align-items:center;opacity:0}
+.brk i{width:16px;height:16px;border-radius:50%;background:#fff;animation:blink .7s steps(2) infinite}
+.hl{position:absolute;left:96px;top:370px;font-size:168px;font-weight:900;line-height:1.08;letter-spacing:-.045em}
+.hl .w{display:inline-block;margin-right:.22em;opacity:0}
+.hl .w.in{animation:slam .45s cubic-bezier(.2,1.2,.3,1) both}
+.hl .hot{color:var(--up)}
+.q1{position:absolute;left:96px;top:820px;font-size:48px;font-weight:700;color:var(--dim);letter-spacing:-.02em;opacity:0}
+
+/* 2 선택 */
+.half{position:absolute;top:0;bottom:0;width:50%;display:flex;flex-direction:column;justify-content:center;align-items:center;transition:width .7s cubic-bezier(.7,0,.2,1),left .7s cubic-bezier(.7,0,.2,1),opacity .4s,background .4s}
+.half.u{left:0;background:#1a0b0b}
+.half.d{left:50%;background:#0a1020}
+.half .ar{font-size:220px;line-height:1;transition:font-size .6s cubic-bezier(.2,1.2,.3,1),color .3s}
+.half .lb{font-size:120px;font-weight:900;letter-spacing:-.04em;margin-top:10px;transition:font-size .6s cubic-bezier(.2,1.2,.3,1)}
+.half.u .ar{color:var(--up)}.half.d .ar{color:var(--down)}
+.half.u.win{width:100%;background:var(--up)}
+.half.u.win .ar{color:#fff;font-size:300px}
+.half.u.win .lb{font-size:200px}
+.half.d.lose{left:100%;opacity:0}
+.ask{position:absolute;left:0;right:0;top:150px;text-align:center;font-size:64px;font-weight:900;letter-spacing:-.03em;z-index:4;transition:opacity .3s}
+.sure{position:absolute;left:0;right:0;bottom:120px;text-align:center;font-size:56px;font-weight:700;color:#fff;opacity:0;z-index:4}
+.ptr{position:absolute;left:1700px;top:1000px;width:70px;z-index:6;transition:left .9s cubic-bezier(.3,.7,.2,1),top .9s cubic-bezier(.3,.7,.2,1),transform .12s,opacity .3s}
+.ptr.go{left:520px;top:600px}
+.ptr.tap{transform:scale(.8)}
+
+/* 3 결과 */
+#chart{position:absolute;inset:0}
+#chart svg{position:absolute;inset:0;width:100%;height:100%}
+.big{position:absolute;left:96px;top:640px;font-weight:900;letter-spacing:-.05em;line-height:1;opacity:0}
+.big b{display:block;font-size:250px;color:var(--down)}
+.big span{display:block;font-size:52px;color:var(--ink);letter-spacing:-.02em;margin-top:16px}
+.lbl{font-family:inherit;font-weight:900;font-size:40px;paint-order:stroke;stroke:#0b0b0b;stroke-width:8px}
+
+/* 4 회고 */
+.rw{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 2px,transparent 2px 6px);opacity:0;pointer-events:none}
+.rw.on{animation:rw .9s ease-out}
+.rwt{position:absolute;right:96px;top:60px;font-size:30px;font-weight:900;opacity:0}
+.rw.on+.rwt{animation:rwt 1s steps(1) both}
+.fb{position:absolute;left:96px;top:170px;font-size:132px;font-weight:900;letter-spacing:-.045em;line-height:1.1}
+.fb span{display:block;opacity:0}
+.fb .l2{color:var(--dim)}
+.fb .l2 em{font-style:normal;color:var(--ink);background:linear-gradient(var(--up),var(--up)) 0 94%/0 14px no-repeat;transition:background-size .7s .3s}
+.fb .l2.rise em{background-size:100% 14px}
+.cards{position:absolute;left:96px;right:96px;top:610px;display:grid;grid-template-columns:repeat(3,1fr);gap:36px}
+.card{border:2px solid var(--line);border-radius:26px;padding:36px 44px 44px;background:#121211;opacity:0}
+.card .n{font-size:28px;font-weight:900;color:var(--dim)}
+.card h4{font-size:28px;color:var(--dim);font-weight:500;margin-top:2px}
+.card p{font-size:44px;font-weight:900;line-height:1.28;margin-top:16px;letter-spacing:-.03em}
+.card.k{border-color:var(--ink)}
+.note{position:absolute;left:96px;bottom:60px;font-size:30px;color:#bdbdb7;opacity:0}
+
+/* 5 타이틀 */
+.logo{position:absolute;left:70px;bottom:30px;font-size:360px;font-weight:900;letter-spacing:-.05em;line-height:1;display:flex}
+.logo i{font-style:normal;display:inline-block;opacity:0}
+.logo i.in{animation:drop .55s cubic-bezier(.2,1.3,.3,1) both}
+.rule{position:absolute;left:96px;top:580px;height:4px;width:0;background:var(--ink);transition:width .8s cubic-bezier(.7,0,.2,1)}
+.rule.go{width:1728px}
+.loop{position:absolute;left:96px;top:450px;display:flex;gap:30px;font-size:54px;font-weight:900;color:#4f4f4a;letter-spacing:-.03em}
+.loop span{opacity:0}
+.loop span.hi{color:var(--ink)}
+.tag{position:absolute;left:96px;top:620px;font-size:42px;color:#d0d0cb;font-weight:500;opacity:0}
+
+#hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:30px;color:#4a4a46;text-align:center;line-height:1.8;transition:opacity .4s;z-index:30}
+#bar{position:absolute;left:0;bottom:0;height:6px;width:0;background:#2c2c2a;z-index:30}
+
+@keyframes slam{0%{opacity:0;transform:scale(2.2);filter:blur(14px)}60%{opacity:1;transform:scale(.94);filter:blur(0)}100%{opacity:1;transform:scale(1)}}
+@keyframes drop{0%{opacity:0;transform:translateY(-260px) scaleY(1.3)}70%{opacity:1;transform:translateY(14px) scaleY(.92)}100%{opacity:1;transform:none}}
+@keyframes pop{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:none}}
+@keyframes rise{0%{opacity:0;transform:translateY(40px)}100%{opacity:1;transform:none}}
+@keyframes shake{0%,100%{transform:none}15%{transform:translate(-26px,12px) rotate(-.6deg)}30%{transform:translate(22px,-14px) rotate(.5deg)}45%{transform:translate(-16px,8px)}60%{transform:translate(12px,-6px)}80%{transform:translate(-5px,3px)}}
+@keyframes fl{0%{opacity:.85}100%{opacity:0}}
+@keyframes slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes blink{50%{opacity:0}}
+@keyframes rw{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-60px)}}
+@keyframes rwt{0%{opacity:1}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+
+<div id="stage"><div id="cam">
+  <div id="hint">Space · 클릭으로 시작<br><span style="font-size:24px">→ 다음 장면 · ← 이전 · R 처음부터 · F 전체화면</span></div>
+
+  <section class="sc" id="s1">
+    <div class="tick" style="top:40px" id="tk1"></div>
+    <div class="tick t2" style="top:920px" id="tk2"></div>
+    <div class="step"><b>01</b>뉴스를 읽고</div>
+    <div class="brk" id="brk"><i></i>속보</div>
+    <div class="hl" id="hl"></div>
+    <div class="q1" id="q1">이 뉴스, 시장에는 호재일까요, 악재일까요?</div>
+  </section>
+
+  <section class="sc" id="s2">
+    <div class="half u" id="hu"><div class="ar">▲</div><div class="lb">상승</div></div>
+    <div class="half d" id="hd"><div class="ar">▼</div><div class="lb">하락</div></div>
+    <div class="step"><b>02</b>예측하고</div>
+    <div class="ask" id="ask">다음 거래일, 시장은 어느 쪽?</div>
+    <div class="sure" id="sure">“이건 무조건 오른다.”</div>
+    <svg class="ptr" id="ptr" viewBox="0 0 24 24"><path d="M4 2l15 9.5-6.6 1.4 3.9 7.4-2.8 1.5-3.9-7.4L4 19z" fill="#fff" stroke="#0b0b0b" stroke-width="1.2"/></svg>
+  </section>
+
+  <section class="sc" id="s3">
+    <div id="chart"></div>
+    <div class="step"><b>03</b>실제 결과를 확인하고</div>
+    <div class="big" id="big"><b>반대.</b><span>시장은 내 예측과 반대로 움직였다</span></div>
+  </section>
+
+  <section class="sc" id="s4">
+    <div class="rw" id="rw"></div><div class="rwt">◀◀ 되감기</div>
+    <div class="step"><b>04</b>근거로 돌아보고</div>
+    <div class="fb"><span id="f1">틀려도 괜찮아요.</span><span class="l2" id="f2"><em>왜 틀렸는지</em>가 남으니까.</span></div>
+    <div class="cards">
+      <div class="card"><div class="n">01</div><h4>내 판단</h4><p>“경기가 좋다”는<br>신호로 읽었다</p></div>
+      <div class="card k"><div class="n">02</div><h4>기사 속 근거</h4><p>예상보다 높은 물가,<br>금리 인하 기대 후퇴</p></div>
+      <div class="card"><div class="n">03</div><h4>다음엔</h4><p>예상치와의 차이를<br>먼저 본다</p></div>
+    </div>
+    <div class="note" id="note">AI 피드백은 매매 추천도 점수도 아닌, 기사 속 근거를 짚어 줍니다.</div>
+  </section>
+
+  <section class="sc" id="s5">
+    <div class="meta">멋쟁이사자처럼 HUFS 3팀</div>
+    <div class="loop" id="loop"><span>뉴스</span><span>→</span><span>예측</span><span>→</span><span>결과</span><span>→</span><span>회고</span><span>→</span><span class="hi">나만의 학습 패턴</span></div>
+    <div class="rule" id="rule"></div>
+    <div class="tag" id="tag">뉴스를 읽고, 예측하고, 근거로 돌아보는 금융 학습 서비스</div>
+    <div class="logo" id="logo"></div>
+  </section>
+</div>
+<div id="flash"></div>
+<div id="bar"></div>
+</div>
+
+<script>
+{
+const stage=document.getElementById('stage');
+const fit=()=>{const s=Math.min(innerWidth/1920,innerHeight/1080);stage.style.left=(innerWidth-1920*s)/2+'px';stage.style.top=(innerHeight-1080*s)/2+'px';stage.style.transform=`scale(${s})`};
+addEventListener('resize',fit);fit();
+
+const $=id=>document.getElementById(id);
+const scenes=[...document.querySelectorAll('.sc')];
+// 장면별 길이(ms). 마지막은 정지. 합계 약 21초
+const DUR=[4600,3800,4800,6200,0];
+let cur=-1,timers=[],raf=0;
+const later=(fn,ms)=>timers.push(setTimeout(fn,ms));
+const clear=()=>{timers.forEach(clearTimeout);timers=[];cancelAnimationFrame(raf)};
+const anim=(el,cls)=>{el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls)};
+const hide=el=>{el.classList.remove('pop','rise','in')};
+const flash=c=>{const f=$('flash');f.className='';void f.offsetWidth;f.className=c};
+const shake=()=>anim($('cam'),'shake');
+
+// 배경 티커(장식, 수치 없음)
+const tk=['코스피 ▼','나스닥 ▲','원/달러 ▲','美 국채 10년 ▲','S&P 500 ▼','금 ▲','코스닥 ▼'];
+const row=a=>a.concat(a).map(t=>`<span>${t}</span>`).join('');
+$('tk1').innerHTML=row(tk);$('tk2').innerHTML=row(tk.slice().reverse());
+
+const WORDS=[['미국','물가,'],['예상보다','*높았다']];
+$('hl').innerHTML=WORDS.map(l=>l.map(w=>w[0]==='*'?`<span class="w hot">${w.slice(1)}</span>`:`<span class="w">${w}</span>`).join('')).join('<br>');
+$('logo').innerHTML=[...'FINSIGHT'].map(c=>`<i>${c}</i>`).join('');
+
+// 차트: 예측대로 오르는 듯하다가 급락
+const W=1920,H=1080,X0=96,X1=1824,Y=v=>220+v*720;
+const seq=[[0,.55],[.06,.52],[.12,.56],[.18,.53],[.24,.55],[.30,.50],[.36,.45],[.42,.40],[.48,.33],[.53,.30],[.56,.62],[.62,.70],[.68,.66],[.74,.80],[.80,.84],[.86,.80],[.92,.92],[1,.95]];
+const PEAK=9,NEWS=.24;
+const px=p=>X0+p[0]*(X1-X0),py=p=>Y(p[1]);
+function chartBase(){
+  $('chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}">
+    <defs><linearGradient id="gd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7bff" stop-opacity=".5"/><stop offset="1" stop-color="#2f7bff" stop-opacity="0"/></linearGradient></defs>
+    ${[0,1,2,3].map(i=>`<line x1="${X0}" x2="${X1}" y1="${220+i*240}" y2="${220+i*240}" stroke="#1c1c1b" stroke-width="2"/>`).join('')}
+    <line x1="${px([NEWS])}" x2="${px([NEWS])}" y1="180" y2="960" stroke="#3a3a37" stroke-width="3" stroke-dasharray="8 10"/>
+    <text x="${px([NEWS])+18}" y="1000" fill="#85857f" style="font-family:inherit;font-weight:500;font-size:30px">뉴스 발표</text>
+    <path id="pr" d="M${px(seq[4])} ${py(seq[4])} Q${px([.62])} ${Y(.30)} ${px([.98])} ${Y(.02)}" stroke="#ff3b3b" stroke-width="7" stroke-dasharray="4 20" stroke-linecap="round" fill="none" opacity="0"/>
+    <text id="prt" class="lbl" x="${px([.98])}" y="${Y(.02)-26}" text-anchor="end" fill="#ff3b3b" opacity="0">▲ 내 예측</text>
+    <path id="ar" fill="url(#gd)" opacity="0"/>
+    <path id="ln" stroke="#f4f4f2" stroke-width="10" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle id="dot" r="18" fill="#f4f4f2"/>
+    <text id="lnt" class="lbl" text-anchor="end" fill="#2f7bff" opacity="0">▼ 실제 시장</text>
+  </svg>`;
+}
+function runChart(ms){
+  const t0=performance.now(),n=seq.length-1;let crashed=false;
+  const step=now=>{
+    const k=Math.min(1,(now-t0)/ms),f=k*n,i=Math.min(n,Math.floor(f)),r=f-i;
+    const pts=seq.slice(0,i+1).map(p=>[px(p),py(p)]);
+    if(i<n){const a=seq[i],b=seq[i+1];pts.push([px(a)+(px(b)-px(a))*r,py(a)+(py(b)-py(a))*r])}
+    const toD=a=>a.map((p,j)=>(j?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+    $('ln').setAttribute('d',toD(pts));
+    const last=pts[pts.length-1];$('dot').setAttribute('cx',last[0]);$('dot').setAttribute('cy',last[1]);
+    if(!crashed&&f>=PEAK+.35){crashed=true;shake();flash('b');
+      $('ln').setAttribute('stroke','#2f7bff');$('dot').setAttribute('fill','#2f7bff');
+      $('pr').setAttribute('opacity',.3);$('prt').setAttribute('opacity',.4);
+      anim($('big'),'pop')}
+    if(crashed){const a=pts.slice(PEAK);$('ar').setAttribute('d',toD(a)+` L${last[0]} 960 L${a[0][0]} 960 Z`);$('ar').setAttribute('opacity',1)}
+    if(k<1)raf=requestAnimationFrame(step);
+    else{const l=$('lnt');l.setAttribute('x',last[0]);l.setAttribute('y',last[1]+76);l.setAttribute('opacity',1)}
+  };
+  raf=requestAnimationFrame(step);
+}
+
+function enter(i){
+  if(i===0){
+    hide($('brk'));hide($('q1'));$('hl').querySelectorAll('.w').forEach(hide);
+    flash('w');
+    later(()=>anim($('brk'),'pop'),150);
+    $('hl').querySelectorAll('.w').forEach((w,k)=>later(()=>w.classList.add('in'),550+k*380));
+    later(()=>anim($('q1'),'rise'),2700);
+  }
+  if(i===1){
+    const hu=$('hu'),hd=$('hd'),p=$('ptr');
+    hu.classList.remove('win');hd.classList.remove('lose');p.classList.remove('go','tap');p.style.opacity=1;$('ask').style.opacity=1;hide($('sure'));
+    later(()=>p.classList.add('go'),500);
+    later(()=>p.classList.add('tap'),1500);
+    later(()=>{p.classList.remove('tap');p.style.opacity=0;$('ask').style.opacity=0;hu.classList.add('win');hd.classList.add('lose')},1650);
+    later(()=>anim($('sure'),'rise'),2300);
+  }
+  if(i===2){
+    chartBase();hide($('big'));
+    later(()=>{$('pr').style.transition='opacity .5s';$('pr').setAttribute('opacity',1);$('prt').setAttribute('opacity',1)},200);
+    later(()=>runChart(3000),500);
+  }
+  if(i===3){
+    const cs=[...document.querySelectorAll('#s4 .card')];
+    [$('f1'),$('f2'),$('note'),...cs].forEach(hide);
+    anim($('rw'),'on');
+    later(()=>anim($('f1'),'rise'),500);
+    later(()=>anim($('f2'),'rise'),1250);
+    cs.forEach((c,k)=>later(()=>anim(c,'rise'),2300+k*400));
+    later(()=>anim($('note'),'rise'),3900);
+  }
+  if(i===4){
+    const ls=[...$('loop').children],lg=[...$('logo').children];
+    [...ls,...lg,$('tag')].forEach(hide);$('rule').classList.remove('go');
+    flash('w');
+    lg.forEach((l,k)=>later(()=>l.classList.add('in'),200+k*90));
+    later(()=>$('rule').classList.add('go'),1300);
+    ls.forEach((l,k)=>later(()=>anim(l,'rise'),1600+k*110));
+    later(()=>anim($('tag'),'rise'),2700);
+  }
+}
+
+function go(i,auto){
+  if(i<0||i>=scenes.length)return;
+  clear();$('hint').style.opacity=0;
+  scenes.forEach((s,k)=>s.classList.toggle('on',k===i));
+  cur=i;enter(i);
+  const bar=$('bar'),N=scenes.length-1;bar.style.transition='none';bar.style.width=(i/N*100)+'%';bar.style.opacity=i===N?0:1;
+  if(auto&&DUR[i]){later(()=>go(i+1,true),DUR[i]);requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.transition=`width ${DUR[i]}ms linear`;bar.style.width=((i+1)/N*100)+'%'}))}
+}
+function reset(){clear();scenes.forEach(s=>s.classList.remove('on'));cur=-1;$('hint').style.opacity=1;$('bar').style.width=0}
+function next(){cur<0?go(0,true):go(cur+1,false)}
+addEventListener('keydown',e=>{
+  if([' ','ArrowRight','Enter','PageDown'].includes(e.key)){e.preventDefault();next()}
+  else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(Math.max(0,cur-1),false)}
+  else if(e.key==='r'||e.key==='R')reset();
+  else if(e.key==='f'||e.key==='F'){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(_){}}
+});
+addEventListener('click',next);
+let mt;addEventListener('mousemove',()=>{document.body.classList.add('cur');clearTimeout(mt);mt=setTimeout(()=>document.body.classList.remove('cur'),1500)});
+if(location.hash==='#auto')setTimeout(()=>go(0,true),600);
+}
+</script>
+</html>
